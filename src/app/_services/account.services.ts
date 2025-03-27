@@ -1,69 +1,88 @@
 import { Injectable } from '@angular/core';
+import { Router } from '@angular/router';
 import { HttpClient } from '@angular/common/http';
 import { BehaviorSubject, Observable } from 'rxjs';
 import { map, finalize } from 'rxjs/operators';
-import { Router } from '@angular/router';
-import { Account } from '../models/account.model';
 
-const baseUrl = 'YOUR_API_BASE_URL';
+import { environment } from '@environments/environment';
+import { Account } from '@app/_models';
+
+const baseUrl = `${environment.apiUrl}/accounts`;
 
 @Injectable({ providedIn: 'root' })
 export class AccountService {
-  private accountSubject: BehaviorSubject<Account | null>;
-  public account: Observable<Account | null>;
+    private accountSubject: BehaviorSubject<Account>;
+    public account: Observable<Account>;
 
-  constructor(private http: HttpClient, private router: Router) {
-    this.accountSubject = new BehaviorSubject<Account | null>(null);
-    this.account = this.accountSubject.asObservable();
-  }
+    constructor(
+        private router: Router,
+        private http: HttpClient
+    ) {
+        this.accountSubject = new BehaviorSubject<Account>(null);
+        this.account = this.accountSubject.asObservable();
+    }
 
-  logout() {
+    public get accountValue(): Account {
+        return this.accountSubject.value;
+    }
+
+    login(email: string, password: string) {
+        return this.http.post<any>(`${baseUrl}/authenticate`, { email, password }, { withCredentials: true })
+            .pipe(map(account => {
+                this.accountSubject.next(account);
+                this.startRefreshTokenTimer();
+                return account;
+            }));
+    }
+}
+logout() {
+    this.http.post<any>(`${baseUrl}/revoke-token`, {}, { withCredentials: true }).subscribe();
+    this.stopRefreshTokenTimer();
     this.accountSubject.next(null);
     this.router.navigate(['/account/login']);
-  }
+}
 
-  refreshToken() {
+refreshToken() {
     return this.http.post<any>(`${baseUrl}/refresh-token`, {}, { withCredentials: true })
-      .pipe(map((account) => {
-        this.accountSubject.next(account);
-        this.startRefreshTokenTimer();
-        return account;
-      }));
-  }
+        .pipe(map(account => {
+            this.accountSubject.next(account);
+            this.startRefreshTokenTimer();
+            return account;
+        }));
+}
 
-  register(account: Account) {
+register(account: Account) {
     return this.http.post(`${baseUrl}/register`, account);
-  }
+}
 
-  verifyEmail(token: string) {
+verifyEmail(token: string) {
     return this.http.post(`${baseUrl}/verify-email`, { token });
-  }
+}
 
-  forgotPassword(email: string) {
+forgotPassword(email: string) {
     return this.http.post(`${baseUrl}/forgot-password`, { email });
-  }
+}
 
-  validateResetToken(token: string) {
+validateResetToken(token: string) {
     return this.http.post(`${baseUrl}/validate-reset-token`, { token });
-  }
+}
 
-  resetPassword(token: string, password: string, confirmPassword: string) {
+resetPassword(token: string, password: string, confirmPassword: string) {
     return this.http.post(`${baseUrl}/reset-password`, { token, password, confirmPassword });
-  }
-
-  getAll(): Observable<Account[]> {
+}
+getAll() {
     return this.http.get<Account[]>(baseUrl);
-  }
+}
 
-  getById(id: string): Observable<Account> {
+getById(id: string) {
     return this.http.get<Account>(`${baseUrl}/${id}`);
-  }
+}
 
-  create(params) {
+create(params) {
     return this.http.post(baseUrl, params);
-  }
+}
 
-  update(id, params) {
+update(id, params) {
     return this.http.put(`${baseUrl}/${id}`, params)
         .pipe(map((account: any) => {
             // update the current account if it was updated
@@ -74,9 +93,9 @@ export class AccountService {
             }
             return account;
         }));
-  }
+}
 
-  delete(id: string) {
+delete(id: string) {
     return this.http.delete(`${baseUrl}/${id}`)
         .pipe(finalize(() => {
             // auto logout if the logged-in account was deleted
@@ -84,13 +103,12 @@ export class AccountService {
                 this.logout();
             }
         }));
-  }
+}
+// helper methods
 
-  // helper methods
+private refreshTokenTimeout;
 
-  private refreshTokenTimeout;
-
-  private startRefreshTokenTimer() {
+private startRefreshTokenTimer() {
     // parse json object from base64 encoded jwt token
     const jwtToken = JSON.parse(atob(this.accountValue.jwtToken.split('.')[1]));
 
@@ -98,9 +116,8 @@ export class AccountService {
     const expires = new Date(jwtToken.exp * 1000);
     const timeout = expires.getTime() - Date.now() - (60 * 1000);
     this.refreshTokenTimeout = setTimeout(() => this.refreshToken().subscribe(), timeout);
-  }
+}
 
-  private stopRefreshTokenTimer() {
+private stopRefreshTokenTimer() {
     clearTimeout(this.refreshTokenTimeout);
-  }
 }

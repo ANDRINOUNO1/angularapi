@@ -1,21 +1,20 @@
-import { UntypedFormGroup } from '@angular/forms';
 
-// custom validator to check that two fields match
-export function MustMatch(controlName: string, matchingControlName: string) {
-    return (formGroup: UntypedFormGroup) => {
-        const control = formGroup.controls[controlName];
-        const matchingControl = formGroup.controls[matchingControlName];
-
-        if (matchingControl.errors && !matchingControl.errors.mustMatch) {
-            // return if another validator has already found an error on the matchingControl
-            return;
-        }
-
-        // set error on matchingControl if validation fails
-        if (control.value !== matchingControl.value) {
-            matchingControl.setErrors({ mustMatch: true });
-        } else {
-            matchingControl.setErrors(null);
-        }
-    };
+import { Injectable } from '@angular/core';
+import { HttpRequest, HttpHandler, HttpEvent, HttpInterceptor } from '@angular/common/http'; 
+import { Observable } from 'rxjs';
+import { environment } from '@environments/environment';
+import { AccountService } from '@app/_services';
+@Injectable()
+export class JwtInterceptor implements HttpInterceptor {
+constructor(private accountService: AccountService) { }
+intercept(request: HttpRequest<any>, next: HttpHandler): Observable<HttpEvent<any>> { 
+// add auth header with jwt if account is logged in and request is to the api url const account = this.accountService.accountValue;
+const isLoggedIn = account && account.jwtToken;
+const isApiUrl = request.url.startsWith(environment.apiUrl); if (isLoggedIn && isApiUrl) {
+request = request.clone({
+setHeaders: { Authorization: `Bearer ${account.jwtToken}` }
+});
+}
+return next.handle(request);
+}
 }
