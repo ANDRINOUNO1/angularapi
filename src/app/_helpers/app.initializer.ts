@@ -1,4 +1,4 @@
-import {AccoubtService} from '@app/_services';
+import { AccountService } from '@app/_services';
 import { resolve } from 'path';
 
 export function appInitializer(accountService: AccountService){
